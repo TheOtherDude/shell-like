@@ -2,6 +2,7 @@
 #include "constants.h"
 #include "parsetools.h"
 #include <sys/wait.h>
+#include <unistd.h>
 
 int main() {
     // Buffer for reading one line of input
@@ -13,9 +14,13 @@ int main() {
     while( fgets(line, MAX_LINE_CHARS, stdin) ) {
         int num_words = split_cmd_line(line, line_words);
 
-        // Just for demonstration purposes
-        for (int i=0; i < num_words; i++)
-            printf("%s\n", line_words[i]);
+        __pid_t child = fork();
+
+        if (child == 0) {
+            execvp(line_words[0], line_words);
+        }
+
+        while ( wait(NULL) != -1); // Wait for processes to finish before taking more
 
     }
 
