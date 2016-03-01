@@ -13,7 +13,7 @@ pipe_demo.x: pipe_demo.o
 
 # $< is the first item after the colon (main.c here)
 main.o: main.c parsetools.h constants.h
-	gcc -c -o $@ $<
+	gcc -c -o $@ $< -std=c11
 
 parsetools.o: parsetools.c constants.h
 	gcc -c -o $@ $<
