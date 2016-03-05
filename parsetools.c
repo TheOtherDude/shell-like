@@ -43,25 +43,17 @@ int split_cmd_line_commands(char *line, char **list_to_populate) {
  * an array with sufficient space for symbols*/
 int get_redirect_symbols(const char *line, char *list_to_populate) {
     const char* delimiters = "|<>";
-    char* tmpPtr = 0;
-    char* localCopy;
+    char *tmpPtr = NULL;
+    char *localCopy;
     int i = 0;
-    int foundAt = -1;
+
     strcpy(localCopy, line);
 
-    //TODO: Refactor this bs
-
-    tmpPtr = strpbrk(localCopy, delimiters);
-    list_to_populate[i] = tmpPtr != 0 ? *tmpPtr : '\0';
-    foundAt = strcspn(localCopy, delimiters);
-    localCopy += foundAt + 1; //Need the plus 1 to get beyond symbol
-
-    while(list_to_populate[i] != '\0' && i < MAX_LINE_CHARS) {
+    do {
         tmpPtr = strpbrk(localCopy, delimiters);
-        list_to_populate[++i] = tmpPtr != 0 ? *tmpPtr : '\0';
-        foundAt = strcspn(localCopy, delimiters);
-        localCopy += foundAt + 1;
-    }
+        list_to_populate[i] = tmpPtr != 0 ? *tmpPtr : '\0';
+        localCopy = tmpPtr + 1;                             //Need the plus 1 to get beyond symbol
+    } while (list_to_populate[i++] != '\0' && i < MAX_LINE_CHARS);
 
     return i;
 }
