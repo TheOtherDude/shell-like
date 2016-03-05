@@ -6,5 +6,6 @@
 // Return the number of words 
 int split_cmd_line_words(char *line, char **list_to_populate);
 int split_cmd_line_commands(char *line, char **list_to_populate);
+int get_redirect_symbols(const char *line, char *list_to_populate);
 
 #endif

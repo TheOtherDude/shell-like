@@ -39,7 +39,7 @@ int main() {
                 if (close(pfd[0]) == -1 || close(pfd[1]) == -1)
                     syserror("Could not close pfds from first child");
                 execvp(second_command[0], second_command);
-                syserror("Could not exec wc");
+                syserror("Right side exec failed");
         }
         fprintf(stderr, "The first child's pid is: %d\n", childID1);
         switch (childID2 = fork()) {
@@ -52,7 +52,7 @@ int main() {
                 if (close(pfd[0]) == -1 || close(pfd[1]) == -1)
                     syserror("Could not close pfds from second child");
                 execvp(first_command[0], first_command);
-                syserror("Could not exec who");
+                syserror("Left side exec failed");
         }
 
         fprintf(stderr, "The second child's pid is: %d\n", childID2);
