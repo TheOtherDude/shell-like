@@ -49,6 +49,8 @@ int get_redirect_symbols(const char *line, char *list_to_populate) {
     int foundAt = -1;
     strcpy(localCopy, line);
 
+    //TODO: Refactor this bs
+
     tmpPtr = strpbrk(localCopy, delimiters);
     list_to_populate[i] = tmpPtr != 0 ? *tmpPtr : '\0';
     foundAt = strcspn(localCopy, delimiters);
