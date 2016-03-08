@@ -9,63 +9,101 @@
 #include <sys/types.h>
 #include <fcntl.h>
 
-void single_command(char **command);
+void single_command(char **command, pid_t *first_pid);
 
-//void multi_pipe_setup(char** current_command, char **line_commands, char *line_symbols, int *command_index, int *symbol_index);
+void pipe_setup(char **left_command, pid_t *first_pid);
 
-void pipe_setup(char **second_command, char **first_command);
+void output_redirect(char **second_command, char **first_command, pid_t *first_pid);
 
-void output_redirect(char **second_command, char **first_command);
+void input_redirect(char **second_command, char **first_command, pid_t *first_pid);
 
-void input_redirect(char **second_command, char **first_command);
+void double_redirect(char **input_argument, char **output_argument, char **command);
 
 
 int main() {
     char line[MAX_LINE_CHARS];                  // Buffer for reading one line of input
-    char *first_command[MAX_LINE_WORDS + 1];    // One set of command + arguments
-    char *second_command[MAX_LINE_WORDS + 1];   // Another set of command + arguments
+    char *current_command[MAX_LINE_CHARS];      // One set of command + arguments
+    char *next_command[MAX_LINE_CHARS];         // Another set of command + arguments
+    char *final_command[MAX_LINE_CHARS];        // Third set of command + arguments
     char *line_commands[MAX_LINE_WORDS + 1];    // Array of commands entered
     char line_symbols[MAX_LINE_CHARS];          // Array of |, <, and >. Should be null terminated
 
-    printf("SHELL-LIKE:");
+    //printf("SHELL-LIKE:");
 
     // Loop until user hits Ctrl-D (end of input)
     // or some other input error occurs
     while (fgets(line, MAX_LINE_CHARS, stdin)) {
 
-        printf("SHELL-LIKE:");
-
-        int num_symbols = get_redirect_symbols(line, line_symbols);
+        get_redirect_symbols(line, line_symbols);
         int num_commands = split_cmd_line_commands(line, line_commands);
         int symbol_index = 0;
+        int command_index = 0;
+        char cur_symbol = line_symbols[symbol_index++];
+        pid_t first_pid = -1;
+
 
         //Loop through commands on this line.
-        //Take commands two at a time if possible
-        int command_index = 0;
         while (command_index < num_commands) {
-            int num_words = split_cmd_line_words(line_commands[command_index++], first_command);
+            split_cmd_line_words(line_commands[command_index++], current_command);
+            char next_symbol = cur_symbol != '\0' ? line_symbols[symbol_index++] : '\0';
 
-            switch (line_symbols[symbol_index++]) {
+            switch (cur_symbol) {
                 case '\0':
-                    single_command(first_command);
+                    single_command(current_command, &first_pid);
                     break;
                 case '|':
-                    //multi_pipe_setup(first_command, line_commands, line_symbols, &command_index, &symbol_index);
-                    num_words = split_cmd_line_words(line_commands[command_index++], second_command);
-                    pipe_setup(second_command, first_command);
+                    pipe_setup(current_command, &first_pid);
                     break;
                 case '>':
-                    num_words = split_cmd_line_words(line_commands[command_index++], second_command);
-                    output_redirect(second_command, first_command);
+                    if (next_symbol == '<') {
+
+                        split_cmd_line_words(line_commands[command_index++], next_command);
+                        split_cmd_line_words(line_commands[command_index++], final_command);
+                        double_redirect(final_command, next_command, current_command);
+
+                    } else {
+                        split_cmd_line_words(line_commands[command_index++], next_command);
+                        output_redirect(next_command, current_command, &first_pid);
+
+                    }
                     break;
                 case '<':
-                    num_words = split_cmd_line_words(line_commands[command_index++], second_command);
-                    input_redirect(second_command, first_command);
+                    if (next_symbol == '>') {
+
+                        split_cmd_line_words(line_commands[command_index++], next_command);
+                        split_cmd_line_words(line_commands[command_index++], final_command);
+                        double_redirect(next_command, final_command, current_command);
+
+                    } else {
+
+                        split_cmd_line_words(line_commands[command_index++], next_command);
+                        input_redirect(next_command, current_command, &first_pid);
+
+                        if (next_symbol == '|') {
+
+                            cur_symbol = next_symbol;
+                            next_symbol = line_symbols[symbol_index++]; //Consuming the pipe so we don't do another setup
+
+                            pipe_setup(current_command, &first_pid);
+
+                        } else if (next_symbol == '\0') {
+
+                            //Have to do the exec here because we will not re-enter loop
+                            single_command(current_command, &first_pid);
+
+                        }
+                    }
+                    break;
+                default:
+                    fprintf(stderr, "Tried to use invalid symbol");
                     break;
             }
+
+            cur_symbol = next_symbol;
         }
 
         while (wait(NULL) != -1); // Wait for processes to finish before taking more
+        //printf("SHELL-LIKE:");
     }
 
     return 0; //TODO: Exits with status 11 instead of 0. Why?!?
@@ -80,30 +118,31 @@ void syserror(const char *s) {
 }
 
 
-void single_command(char **command) {
+void single_command(char **command, pid_t *first_pid) {
     pid_t child;
 
-    switch (child = fork()) {
-        case -1:
-            syserror("Fork failed for single command");
-        case 0:
-            execvp(command[0], command);
-            syserror("exec failed");
+    if (*first_pid == -1) {
+
+        switch (child = fork()) {
+            case -1:
+                syserror("Fork failed for single command");
+            case 0:
+                execvp(command[0], command);
+                syserror("exec failed");
+        }
+    }
+    else if (*first_pid == 0) {
+
+        execvp(command[0], command);
+        syserror("exec failed");
+
     }
 
 }
 
 
-/*void multi_pipe_setup(char** current_command, char **line_commands, char *line_symbols, int *command_index, int *symbol_index) {
-    char *next_command[MAX_LINE_WORDS + 1];
-
-    while (line_symbols[*symbol_index] == '|');
-}*/
-
-
-void pipe_setup(char **second_command, char **first_command) {
+void pipe_setup(char **left_command, pid_t *first_pid) {
     int pfd[2];
-    pid_t left_child = -1;
     pid_t right_child = -1;
 
     if (pipe(pfd) == -1) {
@@ -123,47 +162,81 @@ void pipe_setup(char **second_command, char **first_command) {
             if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
                 syserror("Could not close pfds from right child");
             }
-            //fprintf(stderr, "%s reading from %d\n", second_command[0], pfd[0]);
-            execvp(second_command[0], second_command);
-            syserror("exec failed");
+            return; //right child is done for now
         }
     }
 
-    //Left side of pipe
-    switch (left_child = fork()) {
-        case -1:
-            syserror("First fork failed");
-        case 0: {
-            if (close(1) == -1) {
-                syserror("Could not close stdout");
-            }
-            dup(pfd[1]);
 
-            if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
-                syserror("Could not close pfds from left child");
+    if (*first_pid == -1) {
+
+        //Left side of pipe
+        switch (*first_pid = fork()) {
+            case -1:
+                syserror("First fork failed");
+            case 0: {
+                if (close(1) == -1) {
+                    syserror("Could not close stdout");
+                }
+                dup(pfd[1]);
+
+                if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
+                    syserror("Could not close pfds from left child");
+                }
+
+                execvp(left_command[0], left_command);
+                syserror("exec failed");
             }
-            //fprintf(stderr, "%s printing to %d\n", first_command[0], pfd[1]);
-            execvp(first_command[0], first_command);
-            syserror("exec failed");
         }
+    }
+    else if (*first_pid == 0) {
+        if (close(1) == -1) {
+            syserror("Could not close stdout");
+        }
+        dup(pfd[1]);
+
+        if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
+            syserror("Could not close pfds from left child");
+        }
+        //fprintf(stderr, "trying to exec %s from pid %d \n", left_command[0], getpid());
+        execvp(left_command[0], left_command);
+        syserror("exec failed");
     }
 
     if (close(pfd[0]) == -1)
-        syserror("Parent could not close stdin");
+        syserror("Parent could not close pfd0");
     if (close(pfd[1]) == -1)
-        syserror("Parent could not close stdout");
+        syserror("Parent could not close pfd1");
 }
 
 
-
-void output_redirect(char **second_command, char **first_command) {
-    pid_t child;
+void output_redirect(char **second_command, char **first_command, pid_t *first_pid) {
+    pid_t child = -1;
     int fd = -1;
 
-    switch (child = fork()) {
-        case -1:
-            syserror("Fork failed for single command (output redirect)");
-        case 0:
+    if (*first_pid == -1) {
+
+        switch (*first_pid = fork()) {
+            case -1:
+                syserror("Fork failed for single command (output redirect)");
+            case 0:
+                fd = open(second_command[0], O_WRONLY | O_CREAT | O_TRUNC, 0640);
+                if (fd == -1) {
+                    syserror("Could not open output file");
+                }
+
+                if (close(1) == -1) {
+                    syserror("Could not close stdout");
+                }
+                dup(fd);
+                if (close(fd) == -1) {
+                    syserror("Could not close output fd");
+                }
+
+                execvp(first_command[0], first_command);
+                syserror("exec failed");
+
+        }
+    } else if (*first_pid == 0) {
             fd = open(second_command[0], O_WRONLY | O_CREAT | O_TRUNC, 0640);
             if (fd == -1) {
                 syserror("Could not open output file");
@@ -179,17 +252,15 @@ void output_redirect(char **second_command, char **first_command) {
 
             execvp(first_command[0], first_command);
             syserror("exec failed");
-
     }
 
 
 }
 
-void input_redirect(char **second_command, char **first_command) {
-    pid_t child;
+void input_redirect(char **second_command, char **first_command, pid_t *first_pid) {
     int fd = -1;
 
-    switch (child = fork()) {
+    switch (*first_pid = fork()) {
         case -1:
             syserror("Fork failed for single command (input redirect)");
         case 0:
@@ -206,9 +277,50 @@ void input_redirect(char **second_command, char **first_command) {
                 syserror("Could not close input file fd");
             }
 
-            execvp(first_command[0], first_command);
-            syserror("exec failed");
+            //Exec happens in single_command() or pipe_setup() from main()
     }
 
+}
 
+void double_redirect(char **input_argument, char **output_argument, char **command) {
+    pid_t child = -1;
+    int input_fd = -1;
+    int output_fd = -1;
+
+    switch (child = fork()) {
+        case -1:
+            syserror("Fork failed for single command (double redirect)");
+        case 0:
+            // Input redirect
+            input_fd = open(input_argument[0], O_RDONLY);
+            if (input_fd == -1) {
+                syserror("Could not open input file");
+            }
+
+            if (close(0) == -1) {
+                syserror("Could not close stdin");
+            }
+            dup(input_fd);
+            if (close(input_fd) == -1) {
+                syserror("Could not close input file fd");
+            }
+
+            // Output redirect
+            output_fd = open(output_argument[0], O_WRONLY | O_CREAT | O_TRUNC, 0640);
+            if (output_fd == -1) {
+                syserror("Could not open output file");
+            }
+
+            if (close(1) == -1) {
+                syserror("Could not close stdout");
+            }
+            dup(output_fd);
+            if (close(output_fd) == -1) {
+                syserror("Could not close output fd");
+            }
+
+            execvp(command[0], command);
+            syserror("exec failed");
+
+    }
 }

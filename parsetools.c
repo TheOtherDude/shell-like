@@ -7,11 +7,12 @@
 // separated by whitespace
 // Return the number of words 
 int split_cmd_line_words(char *line, char **list_to_populate) {
-   char* saveptr;  // for strtok_r; see http://linux.die.net/man/3/strtok_r
-   char* delimiters = " \t\n"; // whitespace
-   int i = 0;
+    char *saveptr;  // for strtok_r; see http://linux.die.net/man/3/strtok_r
+    char *delimiters = " \t\n"; // whitespace
+    int i = 0;
+    char *local_copy;
 
-   list_to_populate[0] = __strtok_r(line, delimiters, &saveptr);
+    list_to_populate[0] = __strtok_r(line, delimiters, &saveptr);           //This strips out arguments from line.
 
    while(list_to_populate[i] != NULL && i < MAX_LINE_WORDS - 1)  {
        list_to_populate[++i] = __strtok_r(NULL, delimiters, &saveptr);
@@ -27,6 +28,7 @@ int split_cmd_line_commands(char *line, char **list_to_populate) {
     char* saveptr;  // for strtok_r; see http://linux.die.net/man/3/strtok_r
     char* delimiters = "|<>";
     int i = 0;
+    char *local_copy;
 
     list_to_populate[0] = __strtok_r(line, delimiters, &saveptr);
 
@@ -52,10 +54,10 @@ int get_redirect_symbols(const char *line, char *list_to_populate) {
     do {
         tmpPtr = strpbrk(localCopy, delimiters);
         list_to_populate[i] = tmpPtr != 0 ? *tmpPtr : '\0';
-        localCopy = tmpPtr + 1;                             //Need the plus 1 to get beyond symbol
+        localCopy = tmpPtr + 1;             //Need the plus 1 to get beyond symbol
     } while (list_to_populate[i++] != '\0' && i < MAX_LINE_CHARS);
 
-    return i;
+    return --i;
 }
 
 
