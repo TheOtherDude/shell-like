@@ -40,10 +40,13 @@ int main() {
         int command_index = 0;
         char cur_symbol = line_symbols[symbol_index++];
         pid_t first_pid = -1;
+        fprintf(stderr, "shell-like's pid is %d\n", getpid());
 
 
         //Loop through commands on this line.
         while (command_index < num_commands) {
+            fprintf(stderr, "%d (parent: %d) entered command loop with cur_symbol = %x and first_pid = %d\n", getpid(),
+                    getppid(), cur_symbol, first_pid);
             split_cmd_line_words(line_commands[command_index++], current_command);
             char next_symbol = cur_symbol != '\0' ? line_symbols[symbol_index++] : '\0';
 
@@ -127,12 +130,14 @@ void single_command(char **command, pid_t *first_pid) {
             case -1:
                 syserror("Fork failed for single command");
             case 0:
+                fprintf(stderr, "single_command(-1) Exec'ing %s from %d (parent: %d)\n", command[0], getpid(),
+                        getppid());
                 execvp(command[0], command);
                 syserror("exec failed");
         }
     }
     else if (*first_pid == 0) {
-
+        fprintf(stderr, "single_command(0) Exec'ing %s from %d (parent: %d)\n", command[0], getpid(), getppid());
         execvp(command[0], command);
         syserror("exec failed");
 
@@ -162,10 +167,11 @@ void pipe_setup(char **left_command, pid_t *first_pid) {
             if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
                 syserror("Could not close pfds from right child");
             }
+            fprintf(stderr, "pipe_setup(right side) forked %d (parent: %d)\n", getpid(), getppid());
+            *first_pid = right_child;
             return; //right child is done for now
         }
     }
-
 
     if (*first_pid == -1) {
 
@@ -182,7 +188,8 @@ void pipe_setup(char **left_command, pid_t *first_pid) {
                 if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
                     syserror("Could not close pfds from left child");
                 }
-
+                fprintf(stderr, "pipe_setup(-1) Exec'ing %s from %d (parent: %d)\n", left_command[0], getpid(),
+                        getppid());
                 execvp(left_command[0], left_command);
                 syserror("exec failed");
             }
@@ -197,7 +204,7 @@ void pipe_setup(char **left_command, pid_t *first_pid) {
         if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
             syserror("Could not close pfds from left child");
         }
-        //fprintf(stderr, "trying to exec %s from pid %d \n", left_command[0], getpid());
+        fprintf(stderr, "pipe_setup(0) Exec'ing %s from %d (parent: %d)\n", left_command[0], getpid(), getppid());
         execvp(left_command[0], left_command);
         syserror("exec failed");
     }
@@ -231,7 +238,8 @@ void output_redirect(char **second_command, char **first_command, pid_t *first_p
                 if (close(fd) == -1) {
                     syserror("Could not close output fd");
                 }
-
+                fprintf(stderr, "output_redirect(-1) Exec'ing %s from %d (parent: %d)\n", first_command[0], getpid(),
+                        getppid());
                 execvp(first_command[0], first_command);
                 syserror("exec failed");
 
@@ -249,7 +257,7 @@ void output_redirect(char **second_command, char **first_command, pid_t *first_p
             if (close(fd) == -1) {
                 syserror("Could not close output fd");
             }
-
+        fprintf(stderr, "output_redirect(0) Exec'ing %s from %d (parent: %d)\n", first_command[0], getpid(), getppid());
             execvp(first_command[0], first_command);
             syserror("exec failed");
     }
@@ -276,7 +284,7 @@ void input_redirect(char **second_command, char **first_command, pid_t *first_pi
             if (close(fd) == -1) {
                 syserror("Could not close input file fd");
             }
-
+            fprintf(stderr, "input_redirect forked %d (parent: %d)\n", getpid(), getppid());
             //Exec happens in single_command() or pipe_setup() from main()
     }
 
@@ -319,6 +327,7 @@ void double_redirect(char **input_argument, char **output_argument, char **comma
                 syserror("Could not close output fd");
             }
 
+            fprintf(stderr, "double_redirect() Exec'ing %s from %d (parent: %d)\n", command[0], getpid(), getppid());
             execvp(command[0], command);
             syserror("exec failed");
 

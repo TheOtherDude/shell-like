@@ -12,10 +12,20 @@ int split_cmd_line_words(char *line, char **list_to_populate) {
     int i = 0;
     char *local_copy;
 
-    list_to_populate[0] = __strtok_r(line, delimiters, &saveptr);           //This strips out arguments from line.
+    local_copy = __strtok_r(line, delimiters, &saveptr); //This strips out arguments from line.
+    if (strchr(local_copy, '"') != NULL) {
+        list_to_populate[0] = strtok(local_copy, '"');
+    } else {
+        list_to_populate[0] = local_copy;
+    }
 
    while(list_to_populate[i] != NULL && i < MAX_LINE_WORDS - 1)  {
-       list_to_populate[++i] = __strtok_r(NULL, delimiters, &saveptr);
+       local_copy = __strtok_r(line, delimiters, &saveptr); //This strips out arguments from line.
+       if (strchr(local_copy, '"') != NULL) {
+           list_to_populate[++i] = strtok(local_copy, '"');
+       } else {
+           list_to_populate[++i] = local_copy;
+       }
    };
 
    return i;
