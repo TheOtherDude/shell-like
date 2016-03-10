@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #include <fcntl.h>
 
+//define DEBUG
+
 void single_command(char **command, pid_t *first_pid);
 
 void pipe_setup(char **left_command, pid_t *first_pid);
@@ -40,13 +42,17 @@ int main() {
         int command_index = 0;
         char cur_symbol = line_symbols[symbol_index++];
         pid_t first_pid = -1;
+#ifdef DEBUG
         fprintf(stderr, "shell-like's pid is %d\n", getpid());
+#endif
 
 
         //Loop through commands on this line.
         while (command_index < num_commands) {
+#ifdef DEBUG
             fprintf(stderr, "%d (parent: %d) entered command loop with cur_symbol = %x and first_pid = %d\n", getpid(),
                     getppid(), cur_symbol, first_pid);
+#endif
             split_cmd_line_words(line_commands[command_index++], current_command);
             char next_symbol = cur_symbol != '\0' ? line_symbols[symbol_index++] : '\0';
 
@@ -98,7 +104,7 @@ int main() {
                     }
                     break;
                 default:
-                    fprintf(stderr, "Tried to use invalid symbol");
+                    fprintf(stderr, "Tried to use invalid symbol. Somehow.");
                     break;
             }
 
@@ -130,14 +136,18 @@ void single_command(char **command, pid_t *first_pid) {
             case -1:
                 syserror("Fork failed for single command");
             case 0:
+#ifdef DEBUG
                 fprintf(stderr, "single_command(-1) Exec'ing %s from %d (parent: %d)\n", command[0], getpid(),
                         getppid());
+#endif
                 execvp(command[0], command);
                 syserror("exec failed");
         }
     }
     else if (*first_pid == 0) {
+#ifdef DEBUG
         fprintf(stderr, "single_command(0) Exec'ing %s from %d (parent: %d)\n", command[0], getpid(), getppid());
+#endif
         execvp(command[0], command);
         syserror("exec failed");
 
@@ -154,24 +164,30 @@ void pipe_setup(char **left_command, pid_t *first_pid) {
         syserror("Could not create a pipe");
     }
 
-    //Right side of pipe
-    switch (right_child = fork()) {
-        case -1:
-            syserror("First fork failed");
-        case 0: {
-            if (close(0) == -1) {
-                syserror("Could not close stdin");
-            }
-            dup(pfd[0]);
+    if (*first_pid == -1 || *first_pid == 0) {
 
-            if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
-                syserror("Could not close pfds from right child");
+        //Right side of pipe
+        switch (right_child = fork()) {
+            case -1:
+                syserror("First fork failed");
+            case 0: {
+                if (close(0) == -1) {
+                    syserror("Could not close stdin");
+                }
+                dup(pfd[0]);
+
+                if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
+                    syserror("Could not close pfds from right child");
+                }
+#ifdef DEBUG
+                fprintf(stderr, "pipe_setup(right side) forked %d (parent: %d)\n", getpid(), getppid());
+#endif
+                *first_pid = right_child;
+                return; //right child is done for now
             }
-            fprintf(stderr, "pipe_setup(right side) forked %d (parent: %d)\n", getpid(), getppid());
-            *first_pid = right_child;
-            return; //right child is done for now
         }
     }
+
 
     if (*first_pid == -1) {
 
@@ -188,8 +204,10 @@ void pipe_setup(char **left_command, pid_t *first_pid) {
                 if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
                     syserror("Could not close pfds from left child");
                 }
+#ifdef DEBUG
                 fprintf(stderr, "pipe_setup(-1) Exec'ing %s from %d (parent: %d)\n", left_command[0], getpid(),
                         getppid());
+#endif
                 execvp(left_command[0], left_command);
                 syserror("exec failed");
             }
@@ -204,7 +222,9 @@ void pipe_setup(char **left_command, pid_t *first_pid) {
         if (close(pfd[0]) == -1 || close(pfd[1]) == -1) {
             syserror("Could not close pfds from left child");
         }
+#ifdef DEBUG
         fprintf(stderr, "pipe_setup(0) Exec'ing %s from %d (parent: %d)\n", left_command[0], getpid(), getppid());
+#endif
         execvp(left_command[0], left_command);
         syserror("exec failed");
     }
@@ -238,28 +258,32 @@ void output_redirect(char **second_command, char **first_command, pid_t *first_p
                 if (close(fd) == -1) {
                     syserror("Could not close output fd");
                 }
+#ifdef DEBUG
                 fprintf(stderr, "output_redirect(-1) Exec'ing %s from %d (parent: %d)\n", first_command[0], getpid(),
                         getppid());
+#endif
                 execvp(first_command[0], first_command);
                 syserror("exec failed");
 
         }
     } else if (*first_pid == 0) {
-            fd = open(second_command[0], O_WRONLY | O_CREAT | O_TRUNC, 0640);
-            if (fd == -1) {
-                syserror("Could not open output file");
-            }
+        fd = open(second_command[0], O_WRONLY | O_CREAT | O_TRUNC, 0640);
+        if (fd == -1) {
+            syserror("Could not open output file");
+        }
 
-            if (close(1) == -1) {
-                syserror("Could not close stdout");
-            }
-            dup(fd);
-            if (close(fd) == -1) {
-                syserror("Could not close output fd");
-            }
+        if (close(1) == -1) {
+            syserror("Could not close stdout");
+        }
+        dup(fd);
+        if (close(fd) == -1) {
+            syserror("Could not close output fd");
+        }
+#ifdef DEBUG
         fprintf(stderr, "output_redirect(0) Exec'ing %s from %d (parent: %d)\n", first_command[0], getpid(), getppid());
-            execvp(first_command[0], first_command);
-            syserror("exec failed");
+#endif
+        execvp(first_command[0], first_command);
+        syserror("exec failed");
     }
 
 
@@ -284,7 +308,9 @@ void input_redirect(char **second_command, char **first_command, pid_t *first_pi
             if (close(fd) == -1) {
                 syserror("Could not close input file fd");
             }
+#ifdef DEBUG
             fprintf(stderr, "input_redirect forked %d (parent: %d)\n", getpid(), getppid());
+#endif
             //Exec happens in single_command() or pipe_setup() from main()
     }
 
@@ -326,8 +352,9 @@ void double_redirect(char **input_argument, char **output_argument, char **comma
             if (close(output_fd) == -1) {
                 syserror("Could not close output fd");
             }
-
+#ifdef DEBUG
             fprintf(stderr, "double_redirect() Exec'ing %s from %d (parent: %d)\n", command[0], getpid(), getppid());
+#endif
             execvp(command[0], command);
             syserror("exec failed");
 
