@@ -10,7 +10,12 @@ int split_cmd_line_words(char *line, char **list_to_populate) {
     char *saveptr;  // for strtok_r; see http://linux.die.net/man/3/strtok_r
     char *delimiters = " \t\n"; // whitespace
     int i = 0;
+    char *tmpPtr = NULL;
 
+    //Remove quotes
+    while (tmpPtr = strchr(line, '"')) {
+        *tmpPtr = ' ';
+    }
     list_to_populate[0] = __strtok_r(line, delimiters, &saveptr);           //This strips out arguments from line.
 
     while (list_to_populate[i] != NULL && i < MAX_LINE_WORDS - 1) {
