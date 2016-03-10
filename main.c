@@ -274,37 +274,63 @@ void pipe_setup(char **left_command, pid_t *first_pid) {
 void output_redirect(char **second_command, char **first_command, pid_t *first_pid) {
     int fd = -1;
 
-    // Set up the redirection and execution for the right command
-    switch (*first_pid = fork())
-    {
-        case -1:
-            syserror("Fork failed for single command (output redirect)");
+    // Set up the redirection and execution for the command if it hasn't already been handled by a different operation
+    if (*first_pid == -1) {
+      switch (*first_pid = fork())
+      {
+          case -1:
+              syserror("Fork failed for single command (output redirect)");
 
-        case 0:
+          case 0:
 
-            // Open the file as writeable and get its descriptor
-            fd = open(second_command[0], O_WRONLY | O_CREAT | O_TRUNC, 0640);
+              // Open the file as writeable and get its descriptor
+              fd = open(second_command[0], O_WRONLY | O_CREAT | O_TRUNC, 0640);
 
-            if (fd == -1) {
-                syserror("Could not open output file");
-            }
+              if (fd == -1) {
+                  syserror("Could not open output file");
+              }
 
-            // Close stdout so that output can be sent to the file
-            if (close(1) == -1) {
-                syserror("Could not close stdout");
-            }
+              // Close stdout so that output can be sent to the file
+              if (close(1) == -1) {
+                  syserror("Could not close stdout");
+              }
 
-            // Set the opened file as output
-            dup(fd);
+              // Set the opened file as output
+              dup(fd);
 
-            if (close(fd) == -1) {
-                syserror("Could not close output fd");
-            }
+              if (close(fd) == -1) {
+                  syserror("Could not close output fd");
+              }
 
-            // Execute the command
-            execvp(first_command[0], first_command);
-            syserror("exec failed");
-      }
+              // Execute the command
+              execvp(first_command[0], first_command);
+              syserror("exec failed");
+        }
+
+    // If the command has already been set up to receive input via pipe then don't fork and just execute it
+    } else if (*first_pid == 0) {
+        // Open the file as writeable and get its descriptor
+        fd = open(second_command[0], O_WRONLY | O_CREAT | O_TRUNC, 0640);
+
+        if (fd == -1) {
+            syserror("Could not open output file");
+        }
+
+        // Close stdout so that output can be sent to the file
+        if (close(1) == -1) {
+            syserror("Could not close stdout");
+        }
+        // Set the opened file as output
+        dup(fd);
+
+        if (close(fd) == -1) {
+            syserror("Could not close output fd");
+        }
+
+        // Execute the command
+        execvp(first_command[0], first_command);
+        syserror("exec failed");
+    }
 }
 
 // Very simliar to output_redirect, but the file is opened as readonly and input
