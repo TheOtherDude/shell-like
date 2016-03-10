@@ -11,9 +11,10 @@ int split_cmd_line_words(char *line, char **list_to_populate) {
     char *delimiters = " \t\n"; // whitespace
     int i = 0;
     char *tmpPtr = NULL;
+    char *quotes = "\'\"";
 
     //Remove quotes
-    while (tmpPtr = strchr(line, '"')) {
+    while (tmpPtr = strpbrk(line, quotes)) {
         *tmpPtr = ' ';
     }
     list_to_populate[0] = __strtok_r(line, delimiters, &saveptr);           //This strips out arguments from line.
